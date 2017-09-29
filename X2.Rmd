@@ -1,0 +1,144 @@
+---
+title: "Exercise 2, Exploratory Data Analysis"
+author: "Meili Peter"
+date: "25 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###1. Introduction
+The task is to get accustomed to a variety of different possibilities of exploratory data analysis with distributions, normalization, clustering, heat map, correlation and reduced dimensionality representation.
+
+###2. Exercise
+The exploratory data analysis should be done on a dataset of 17 columns. In total 11 patients, with patientID ranging from P02 - P15, without P03, P04, P06 and P08, while P04 has 3 - and P12, P13, P14, and P 15 2 columns of observations. These double measurements are done for the patients in the tissue category 'sick' and 'acute' while the 'norm' categorized patients did not get a second measurement.
+In the 54 675 rows, the gene measurements for every patient is displayed.
+
+```{r, echo =F, warning=FALSE}
+anno = read.table("SampleAnnotation.txt", as.is=TRUE, sep="\t", quote="",
+                  row.names=1, header=TRUE)
+x = read.table("expressiondata.txt", as.is=TRUE, sep="\t", quote="", row.names=1, header=TRUE, check.names = FALSE)
+x = as.matrix(x)
+
+
+samples = rownames(anno)
+colors = rainbow(nrow(anno))
+isNorm = anno$TissueType == "norm"
+isSick = anno$TissueType == "sick"
+isAcute = anno$TissueType == "acute"
+
+library('limma')
+library('pheatmap')
+library('MASS')
+```
+
+#### 2.1 Distributions
+In this first subsection the boxplots and the densities of the data will be looked at.
+
+##### 2.1.1 Boxplot
+```{r, echo=T}
+boxplot(log2(x), las=2, main ='Boxplots of the different genes', xlab ='TissueType-patientID', ylab='log2( values )', cex.axis=0.7)
+```
+
+The boxplots show, that there are only outliers above and none underneath. Furthermore, while the median for all patients does not differ all too much (which is not surprising with such a high amount of data), some light differences can be spotted in the borders for the lower or upper quantile. The most notable difference is in the upper whiskers. Since the amount of data does not differ from one patient to another, there is no point here in using width-adjusted boxplots.
+
+##### 2.1.2 Density
+Due to representational reasons, (the legend does not fit the plot anymore if it is done with all 17 observations), the densities are shown in two separate plots.
+
+```{r, echo=T}
+plotDensities(log2(x[,1:8]), legend=('topright'), main='Densities of 1 - 8')
+
+```
+
+```{r, echo=T}
+plotDensities(log2(x[,9:17]), legend=('topright'), main='Densities of 9 - 17')
+```
+
+
+The biggest difference from all the other densities, for $intensity < 6$, shows norm-07 (which is patient P07). While a smaller difference between all the lines for $2 < intensity < 9$ is also visible.
+
+
+#### 2.2 Normalization
+A signal dependent scaling is done with the use of the quantile normalization.
+
+```{r, echo=T}
+xnew<-normalizeQuantiles(x)
+boxplot(log2(xnew), las=2, main ='Boxplots of the different genes with normalized quantiles', xlab ='TissueType-patientID', ylab='log2( values )', cex.axis=0.7)
+```
+
+As we compare the boxplots now to the one from *2.1.1 Boxplot* it is clearly visible that the lower and upper quantiles and the whiskers now look almost the same for every plot, while before this was not the case. This is due to the quantile normalization.
+
+
+#### 2.3 Clustering
+The clustering is not done with the whole dataset, because of the restricted computation power of a normal laptop this would take far too long. For this reason one cluster is with only the first 100 observations, while the other is with the first 10 000.
+
+
+```{r, echo=T}
+par(mfrow=c(1,2))
+distx<-dist(x[1:100,])
+aa<- hclust(distx)
+plot(aa, main ='With the first 100 observations', xlab ='Distance', sub =NA)
+
+distx<-dist(x[1:10000,])
+aa<- hclust(distx)
+plot(aa, main ='With the first 10 000 observations', xlab ='Distance', sub =NA)
+mtext('Clustering with command hclust', outer = TRUE)
+```
+
+
+As one looks at the both pictures it becomes clear, that representation of data from the command *hclust* in a plot is not a good idea for that much data. With the first 100 data points the structure is almost visible, while with 10 000 one can see no details whatsoever.
+
+
+#### 2.4 Heatmap
+Similar as under *2.3 Clustering* once with the first 100 respectivly 10 000 observations.
+
+```{r, echo=T}
+pheatmap(x[1:100,], main ='Heatmap with the first 100 obeservations')
+pheatmap(x[1:10000,], main = 'Heatmap with the first 10 000 obeservations')
+```
+
+As similar as before, there is some structure to interpret in the heatmap with 100 observations, while with 10 000 there is no information left that one could see because of the noise.
+
+#### 2.5 Correlation
+```{r, echo=T}
+par(mfrow =c(1,1))
+asd<-cor(x[1:17,])
+image(asd, main='Correlation of the first 17 x 17 values')
+```
+
+To compute the correlation picture only the first 17 rows are taken into account (one needs a square matrix to calculate the correlations). This picture could be done $54 675/17 = 3216$ times, which again shows the massive amount of information which have to be dealt with. On the diagonal in the picture (the white squares) the correlations which equal one are displayed (these are the ones with themselves). A red part can be spotted in the left upper corner and in the right corner. While a big white field is in the left corner.
+
+#### 2.6 Reduced dimensionality
+First the command *cmdscale* is used follwed by *prcomp*. For this chapter 1000 data points are used to simplify the calculations.
+
+##### 2.6.1 Cmdscale
+
+```{r, echo=T}
+distx<-dist(x[1:1000,])
+aa<-cmdscale(distx)
+plot(aa, xlab ='Values', ylab ='values', main = 'Multidimensional scaled data')
+abline (h=0, v=0)
+```
+
+Most of the data points are around 0 while 6 are at $> 4000$ on the x-axis. Furthermore, a PCA would become possible as shown in the next picture.
+
+
+```{r, echo=T}
+aa<-cmdscale(distx, eig =T)
+plot(aa$eig, type ='b', ylab ='Eigenvalues', main ='Scree-Diagram')
+```
+
+In difference to before, *eig=T* which means the eigenvalues are computed for the scree-diagram. The elbow is at data point 2 so 1 PC would be sufficient enough to describe the data accurately.
+
+
+##### 2.6.2 Prcomp
+
+```{r, echo=T}
+jj<-prcomp(x[1:1000,], scale=F) 
+plot(jj, main ='PCA')
+```
+
+Since the boxplots do not show any major differences and therefore have almost the same variances, it does not matter if we use the sample covariance matrix (scale = F) or the sample correlation matrix (scale = T).
+With this plot, a principal component analysis becomes possible. The elbow is by 2 so 1 PC would be enough to describe the data (same number of PC's as before under *2.6.1 Cmdscale*).
